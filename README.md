@@ -40,18 +40,39 @@ Operator -> authenticated admin API :9090 -> durable tenant registry
 - Permission to access the Docker socket. This is effectively host-root access:
   run the control plane only under a trusted service account. Do not make the
   socket world-writable.
-- A locally built PocketBase image. PocketBase has no official Docker image.
+- A PocketBase image pulled from GitHub Container Registry (GHCR) or built locally.
+  PocketBase has no official Docker image.
   This repository pins PocketBase 0.40.5; review upstream compatibility and updates
   before deploying.
 
 ## Quick start
 
-Build the image and gateway:
+### Pull a published image from GHCR
 
 ```sh
+export BURROW_PB_IMAGE=ghcr.io/macleodwalker/pocketburrow-pocketbase:0.40.5
+docker pull "$BURROW_PB_IMAGE"
+```
+
+Public images can be pulled without signing in. For a private image, first run
+`docker login ghcr.io --username your-github-username` and enter a personal access
+token (classic) with `read:packages` and access to the package at the password
+prompt, then run the pull command above.
+
+PocketBurrow does not automatically pull missing images. Pull the image on the
+same Docker Engine it will manage, and keep `BURROW_PB_IMAGE` exported in the
+terminal where you start PocketBurrow. Use an image supporting your host's
+architecture; for production, prefer an immutable digest reference such as
+`ghcr.io/macleodwalker/pocketburrow-pocketbase@sha256:<published-digest>`.
+
+### Alternative: build the image locally
+
+If no GHCR package has been published yet, build the supplied Dockerfile instead:
+
+```sh
+export BURROW_PB_IMAGE=pocketburrow/pocketbase:0.40.5
 docker build -f docker/pocketbase.Dockerfile \
-  -t pocketburrow/pocketbase:0.40.5 .
-go build -o pocketburrow ./cmd/pocketburrow
+  -t "$BURROW_PB_IMAGE" .
 ```
 
 The Dockerfile supports `TARGETARCH=amd64` or `arm64`; set `--build-arg
@@ -59,9 +80,13 @@ TARGETARCH=arm64` when building natively on ARM without BuildKit's automatic arg
 To customize schemas/hooks, build a derivative image with `pb_migrations` and
 `pb_hooks` under `/pb`, and set `BURROW_PB_IMAGE` before provisioning.
 
-Generate an admin token and start the process in one terminal:
+### Build and start PocketBurrow
+
+After pulling or building the image, build the gateway, generate an admin token
+and start the process in the same terminal:
 
 ```sh
+go build -o pocketburrow ./cmd/pocketburrow
 export BURROW_ADMIN_TOKEN="$(openssl rand -hex 32)"
 ./pocketburrow
 ```
